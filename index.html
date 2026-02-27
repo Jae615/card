@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="开卡记录器">
+<meta name="theme-color" content="#FFF8ED">
+<title>开卡记录器</title>
+<script src="https://cdn.bootcdn.net/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#FFF8ED;--bg2:#FFF1D6;--text:#3D2B1F;--text-soft:#8B7355;
+  --accent:#FF6B35;--accent2:#FFB347;--danger:#E85D5D;--success:#5BAF5B;
+  --card-shadow:0 4px 16px rgba(61,43,31,.1);
+  --btn-shadow:0 6px 0 rgba(0,0,0,.12);
+  --radius:16px;
+}
+html{font-size:16px;-webkit-tap-highlight-color:transparent}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;
+  background:var(--bg);color:var(--text);min-height:100dvh;overflow-x:hidden;
+  background-image:
+    radial-gradient(ellipse at 20% 0%,rgba(255,179,71,.18) 0%,transparent 60%),
+    radial-gradient(ellipse at 80% 100%,rgba(255,107,53,.1) 0%,transparent 50%);
+}
+body::before{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
+  background:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  opacity:.025;mix-blend-mode:multiply;
+}
+.container{max-width:780px;margin:0 auto;padding:16px 16px 40px}
+.btn{
+  font-family:inherit;font-weight:700;border:none;cursor:pointer;border-radius:12px;
+  transition:transform .12s,box-shadow .12s;-webkit-user-select:none;user-select:none;
+}
+.btn:active{transform:translateY(3px) scale(.97)!important;box-shadow:0 2px 0 rgba(0,0,0,.1)!important}
+.btn-primary{background:var(--accent);color:#fff;font-size:.95rem;padding:10px 22px;box-shadow:var(--btn-shadow)}
+.btn-primary:hover{background:#ff5722}
+.btn-sm{background:#fff;color:var(--text);font-size:.82rem;padding:8px 16px;box-shadow:0 3px 0 rgba(0,0,0,.08);border:2px solid rgba(61,43,31,.08)}
+.btn-sm:hover{background:var(--bg2)}
+.btn-danger{background:var(--danger);color:#fff;padding:10px 22px;font-size:.95rem;box-shadow:0 6px 0 rgba(232,93,93,.3)}
+.btn-danger:hover{background:#d04040}
+.btn-success{background:var(--success);color:#fff;padding:12px 32px;font-size:1.05rem;box-shadow:0 6px 0 rgba(91,175,91,.3)}
+.btn-success:hover{background:#4a9e4a}
+
+/* ===== SETUP PAGE ===== */
+.page{display:none}.page.active{display:block}
+.setup-header{text-align:center;padding:24px 0 16px}
+.setup-header h1{font-weight:900;font-size:clamp(1.4rem,5vw,2rem);color:var(--accent);text-shadow:2px 2px 0 rgba(255,179,71,.4)}
+.setup-header p{font-size:.85rem;color:var(--text-soft);margin-top:6px}
+.setup-section{margin:20px 0}
+.setup-section h2{font-weight:800;font-size:1rem;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.setup-section h2::before{content:'';width:4px;height:18px;background:var(--accent);border-radius:4px}
+.param-row{
+  display:flex;align-items:center;gap:12px;margin-bottom:12px;
+  background:#fff;border-radius:12px;padding:12px 16px;
+  box-shadow:0 2px 8px rgba(0,0,0,.05);border:2px solid rgba(61,43,31,.04);
+}
+.param-row label{font-weight:700;font-size:.9rem;min-width:100px}
+.param-row input[type=number]{
+  width:80px;padding:8px 12px;border:2px solid rgba(61,43,31,.1);border-radius:8px;
+  font-size:1rem;font-weight:700;text-align:center;font-family:inherit;
+}
+.param-row input[type=number]:focus{outline:none;border-color:var(--accent)}
+.char-list{display:flex;flex-direction:column;gap:10px}
+.char-item{
+  display:flex;align-items:center;gap:10px;
+  background:#fff;border-radius:14px;padding:10px 14px;
+  box-shadow:0 2px 8px rgba(0,0,0,.05);border:2px solid rgba(61,43,31,.04);
+  transition:border-color .2s;
+}
+.char-item:focus-within{border-color:var(--accent2)}
+.char-num{font-weight:900;font-size:.85rem;color:var(--text-soft);min-width:24px;text-align:center}
+.char-avatar{
+  width:52px;height:52px;border-radius:12px;overflow:hidden;cursor:pointer;
+  background:var(--bg2);display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;position:relative;border:2px dashed rgba(61,43,31,.15);
+  transition:border-color .2s;
+}
+.char-avatar:hover{border-color:var(--accent)}
+.char-avatar img{width:100%;height:100%;object-fit:cover}
+.char-avatar .placeholder{font-size:.6rem;color:var(--text-soft);text-align:center;line-height:1.2}
+.char-avatar input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer}
+.char-name-input{
+  flex:1;padding:8px 12px;border:2px solid rgba(61,43,31,.1);border-radius:8px;
+  font-size:1rem;font-weight:600;font-family:inherit;min-width:0;
+}
+.char-name-input:focus{outline:none;border-color:var(--accent)}
+.char-color{
+  width:36px;height:36px;border-radius:8px;border:2px solid rgba(61,43,31,.1);
+  cursor:pointer;padding:0;flex-shrink:0;
+}
+.char-remove{
+  width:32px;height:32px;border-radius:8px;border:none;cursor:pointer;
+  background:rgba(232,93,93,.1);color:var(--danger);font-size:1.2rem;font-weight:700;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  transition:background .2s;
+}
+.char-remove:hover{background:rgba(232,93,93,.2)}
+.add-char-btn{
+  border:2px dashed rgba(61,43,31,.15);background:transparent;border-radius:14px;
+  padding:14px;text-align:center;cursor:pointer;font-family:inherit;
+  font-weight:700;font-size:.9rem;color:var(--text-soft);width:100%;
+  transition:border-color .2s,color .2s;
+}
+.add-char-btn:hover{border-color:var(--accent);color:var(--accent)}
+.setup-actions{display:flex;justify-content:center;gap:12px;margin:28px 0;flex-wrap:wrap}
+
+/* ===== RECORDER PAGE ===== */
+.rec-header{text-align:center;padding:20px 0 8px}
+.rec-header h1{font-weight:900;font-size:clamp(1.2rem,4vw,1.6rem);color:var(--accent);text-shadow:2px 2px 0 rgba(255,179,71,.4)}
+.rec-header p{font-size:.8rem;color:var(--text-soft);margin-top:4px}
+.round-bar{display:flex;align-items:center;justify-content:center;gap:12px;margin:14px 0;flex-wrap:wrap}
+.round-label{font-weight:900;font-size:1.5rem;color:var(--text);background:var(--bg2);border-radius:40px;padding:8px 24px;border:3px solid rgba(61,43,31,.08);min-width:140px;text-align:center}
+.round-label span{color:var(--accent);font-weight:900}
+.stats-bar{display:flex;gap:10px;margin:10px 0;flex-wrap:wrap;justify-content:center}
+.stat-chip{background:#fff;border-radius:40px;padding:8px 18px;font-size:.85rem;font-weight:700;box-shadow:0 2px 8px rgba(0,0,0,.06);border:2px solid rgba(61,43,31,.05);display:flex;align-items:center;gap:6px}
+.stat-chip .num{color:var(--accent);font-size:1.1rem}
+.progress-wrap{width:100%;max-width:500px;margin:0 auto;height:14px;background:rgba(61,43,31,.06);border-radius:10px;overflow:hidden}
+.progress-fill{height:100%;border-radius:10px;transition:width .3s ease;background:linear-gradient(90deg,var(--accent2),var(--accent))}
+
+.char-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin:14px 0}
+@media(max-width:520px){.char-grid{grid-template-columns:repeat(3,1fr);gap:8px}}
+@media(max-width:340px){.char-grid{grid-template-columns:repeat(2,1fr)}}
+
+.char-btn{
+  position:relative;border:none;border-radius:var(--radius);cursor:pointer;padding:8px 4px;
+  min-height:80px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  font-family:inherit;transition:transform .15s cubic-bezier(.4,0,.2,1),box-shadow .15s;
+  -webkit-user-select:none;user-select:none;
+  box-shadow:0 5px 0 rgba(0,0,0,.12),0 8px 24px rgba(0,0,0,.08);overflow:hidden;
+}
+.char-btn:hover{transform:translateY(-2px);box-shadow:0 7px 0 rgba(0,0,0,.12),0 12px 28px rgba(0,0,0,.1)}
+.char-btn:active{transform:translateY(4px) scale(.96);box-shadow:0 2px 0 rgba(0,0,0,.1),0 4px 12px rgba(0,0,0,.06)}
+.char-btn .avatar{width:66%;aspect-ratio:1;border-radius:50%;object-fit:cover;border:2px solid rgba(255,255,255,.5);z-index:1}
+.char-btn .name{font-weight:800;font-size:clamp(.75rem,2.5vw,.95rem);color:#fff;text-shadow:1px 1px 2px rgba(0,0,0,.25);z-index:1;line-height:1.1}
+.char-btn .count{font-weight:900;font-size:clamp(1.4rem,4.5vw,1.9rem);color:rgba(255,255,255,.95);text-shadow:2px 2px 4px rgba(0,0,0,.15);z-index:1;line-height:1}
+.char-btn .hint{font-size:.6rem;color:rgba(255,255,255,.5);z-index:1;opacity:0;transition:opacity .2s}
+.char-btn:hover .hint{opacity:1}
+.char-btn.pop{animation:pop .25s cubic-bezier(.4,0,.2,1)}
+@keyframes pop{0%{transform:scale(1)}40%{transform:scale(1.08)}100%{transform:scale(1)}}
+.char-btn.shrink{animation:shrink .2s ease}
+@keyframes shrink{0%{transform:scale(1)}50%{transform:scale(.92)}100%{transform:scale(1)}}
+.char-btn.touchdown{animation:touchdown-pulse 1s ease infinite;box-shadow:0 5px 0 rgba(0,0,0,.12),0 0 30px rgba(255,255,255,.4)!important}
+@keyframes touchdown-pulse{0%,100%{box-shadow:0 5px 0 rgba(0,0,0,.12),0 0 20px rgba(255,255,255,.3)}50%{box-shadow:0 5px 0 rgba(0,0,0,.12),0 0 40px rgba(255,255,255,.5)}}
+.char-btn.touchdown::after{
+  content:'达阵!';position:absolute;top:3px;right:5px;
+  background:#fff;color:var(--accent);font-size:.6rem;font-weight:900;
+  padding:1px 6px;border-radius:20px;z-index:2;
+  animation:bounce-in .4s cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes bounce-in{0%{transform:scale(0);opacity:0}100%{transform:scale(1);opacity:1}}
+
+.overlay{position:fixed;inset:0;z-index:1000;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.55);backdrop-filter:blur(6px)}
+.overlay.show{display:flex}
+.overlay-card{background:#fff;border-radius:24px;padding:36px 44px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.2);animation:overlay-in .4s cubic-bezier(.34,1.56,.64,1);max-width:90vw}
+@keyframes overlay-in{0%{transform:scale(.6) translateY(30px);opacity:0}100%{transform:scale(1) translateY(0);opacity:1}}
+.overlay-card .emoji{font-size:3.5rem;margin-bottom:10px}
+.overlay-card .title{font-weight:900;font-size:2rem;margin-bottom:6px}
+.overlay-card .desc{color:var(--text-soft);font-size:1rem;margin-bottom:18px}
+.overlay-card .title.td{color:var(--success)}
+.overlay-card .title.bc{color:var(--danger)}
+
+.section-title{font-weight:900;font-size:1.1rem;margin:24px 0 10px;display:flex;align-items:center;gap:8px}
+.section-title::before{content:'';width:4px;height:20px;background:var(--accent);border-radius:4px}
+.history-wrap{background:#fff;border-radius:var(--radius);overflow:hidden;box-shadow:var(--card-shadow);border:2px solid rgba(61,43,31,.04)}
+.history-table{width:100%;border-collapse:collapse;font-size:.75rem}
+.history-table th{background:var(--bg2);padding:8px 4px;font-weight:700;position:sticky;top:0;z-index:2;text-align:center;border-bottom:2px solid rgba(61,43,31,.08)}
+.history-table td{padding:6px 4px;text-align:center;border-bottom:1px solid rgba(61,43,31,.05)}
+.history-table tr:hover td{background:rgba(255,179,71,.06)}
+.history-table .td-cell{color:var(--success);font-weight:700}
+.history-table .bc-cell{color:var(--danger);font-weight:700}
+.history-scroll{max-height:300px;overflow-y:auto;overflow-x:auto}
+.empty-state{padding:28px;text-align:center;color:var(--text-soft);font-size:.9rem}
+.actions{display:flex;gap:10px;margin:14px 0;flex-wrap:wrap;justify-content:center}
+.footer{text-align:center;padding:20px 0 8px;font-size:.75rem;color:var(--text-soft)}
+
+@media(max-width:520px){
+  .container{padding:10px 10px 32px}
+  .char-btn{min-height:72px}
+  .round-bar{gap:8px}
+  .overlay-card{padding:24px 20px}
+  .param-row{flex-wrap:wrap}
+  .param-row label{min-width:auto}
+}
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(61,43,31,.15);border-radius:4px}
+</style>
+</head>
+<body>
+<div class="container">
+
+<!-- ===== PAGE 1: SETUP ===== -->
+<div class="page active" id="pageSetup">
+  <div class="setup-header">
+    <h1>开卡记录器 · 设置</h1>
+    <p>配置角色和规则参数，保存后开始记录</p>
+  </div>
+
+  <div class="setup-section">
+    <h2>游戏参数</h2>
+    <div class="param-row">
+      <label>每轮卡牌数</label>
+      <input type="number" id="paramMaxCards" value="30" min="1" max="200">
+    </div>
+    <div class="param-row">
+      <label>达阵次数</label>
+      <input type="number" id="paramTouchdown" value="5" min="1" max="50">
+    </div>
+  </div>
+
+  <div class="setup-section">
+    <h2>角色列表</h2>
+    <div class="char-list" id="charList"></div>
+    <button class="add-char-btn" onclick="addCharItem()">+ 添加角色</button>
+  </div>
+
+  <div class="setup-actions">
+    <button class="btn btn-success" onclick="saveConfigAndStart()">保存并开始记录</button>
+  </div>
+</div>
+
+<!-- ===== PAGE 2: RECORDER ===== -->
+<div class="page" id="pageRecorder">
+  <div class="rec-header">
+    <h1 id="recTitle">开卡记录器</h1>
+    <p>点击角色按钮记录 · 长按撤回</p>
+  </div>
+
+  <div class="round-bar">
+    <button class="btn btn-sm" onclick="prevRound()">&larr;</button>
+    <div class="round-label">第 <span id="roundNum">1</span> 轮</div>
+    <button class="btn btn-sm" onclick="nextRound()">&rarr;</button>
+    <button class="btn btn-primary" onclick="newRound()">新一轮</button>
+  </div>
+
+  <div class="stats-bar">
+    <div class="stat-chip">已开 <span class="num" id="totalCards">0</span>/<span id="maxCardsLabel">30</span></div>
+    <div class="stat-chip">最高 <span class="num" id="topChar">-</span></div>
+    <div class="stat-chip" id="statusChip">进行中</div>
+  </div>
+  <div class="progress-wrap"><div class="progress-fill" id="progressBar" style="width:0%"></div></div>
+
+  <div class="char-grid" id="charGrid" oncontextmenu="return false"></div>
+
+  <div class="actions">
+    <button class="btn btn-sm" onclick="resetCurrent()">重置本轮</button>
+    <button class="btn btn-sm" onclick="exportExcel()">导出Excel</button>
+    <button class="btn btn-sm" onclick="savePageOffline()">保存网页</button>
+    <button class="btn btn-sm" onclick="goToSetup()">修改设置</button>
+    <button class="btn btn-danger" onclick="confirmClearAll()">清空数据</button>
+  </div>
+
+  <div class="section-title">历史记录</div>
+  <div class="history-wrap">
+    <div class="history-scroll">
+      <table class="history-table">
+        <thead><tr id="historyHead"></tr></thead>
+        <tbody id="historyBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="footer">数据自动保存在浏览器本地</div>
+</div>
+
+</div>
+
+<!-- Overlay -->
+<div class="overlay" id="overlay" onclick="closeOverlay()">
+  <div class="overlay-card" onclick="event.stopPropagation()">
+    <div class="emoji" id="overlayEmoji"></div>
+    <div class="title" id="overlayTitle"></div>
+    <div class="desc" id="overlayDesc"></div>
+    <button class="btn btn-primary" onclick="closeOverlay()">知道了</button>
+  </div>
+</div>
+
+<script>
+// ===== STORAGE KEYS =====
+const SK_CONFIG = 'cardLogConfig';
+const SK_STATE = 'cardLogState';
+
+// Default colors for characters
+const DEFAULT_COLORS = [
+  '#FF6B35','#A0A090','#E88BA7','#6B8E6B','#5B8AC4',
+  '#DA7BAB','#B8956B','#9BB5CE','#C47BD8','#D4A843',
+  '#E06050','#50B0A0','#C09040','#7070C0','#D07070',
+  '#60A060','#B06090','#8090B0','#C0A070','#70B0B0'
+];
+
+// ===== CONFIG =====
+function defaultConfig(){
+  const names = ['小新','小白','美伢','广志','风间','妮妮','正男','阿呆','娜娜子','园长'];
+  return {
+    maxCards: 30,
+    touchdown: 5,
+    chars: names.map((n,i) => ({ name:n, color:DEFAULT_COLORS[i], avatar:'' }))
+  };
+}
+function loadConfig(){
+  try{ const c=JSON.parse(localStorage.getItem(SK_CONFIG)); if(c&&c.chars&&c.chars.length) return c; }catch(e){}
+  return defaultConfig();
+}
+function saveConfig(cfg){ localStorage.setItem(SK_CONFIG, JSON.stringify(cfg)); }
+
+// ===== STATE =====
+function defaultState(charCount){ return { rounds:[ Array(charCount).fill(0) ], currentIdx:0 }; }
+function loadState(charCount){
+  try{
+    const s=JSON.parse(localStorage.getItem(SK_STATE));
+    if(s&&s.rounds&&s.rounds.length&&s.rounds[0].length===charCount) return s;
+  }catch(e){}
+  return defaultState(charCount);
+}
+function saveState(){ localStorage.setItem(SK_STATE, JSON.stringify(state)); }
+
+let config = loadConfig();
+let state = loadState(config.chars.length);
+
+// ===== SETUP PAGE =====
+function renderSetup(){
+  document.getElementById('paramMaxCards').value = config.maxCards;
+  document.getElementById('paramTouchdown').value = config.touchdown;
+  renderCharList();
+}
+
+function renderCharList(){
+  const list = document.getElementById('charList');
+  list.innerHTML = '';
+  config.chars.forEach((ch, i) => {
+    const item = document.createElement('div');
+    item.className = 'char-item';
+    item.innerHTML = `
+      <span class="char-num">${i+1}</span>
+      <div class="char-avatar" title="点击上传头像">
+        ${ch.avatar ? `<img src="${ch.avatar}" alt="${ch.name}">` : '<span class="placeholder">上传<br>头像</span>'}
+        <input type="file" accept="image/*" onchange="uploadAvatar(${i},this)">
+      </div>
+      <input class="char-name-input" type="text" value="${ch.name}" placeholder="角色名称"
+             onchange="config.chars[${i}].name=this.value">
+      <input class="char-color" type="color" value="${ch.color}"
+             onchange="config.chars[${i}].color=this.value" title="按钮颜色">
+      <button class="char-remove" onclick="removeChar(${i})" title="删除">&times;</button>
+    `;
+    list.appendChild(item);
+  });
+}
+
+function uploadAvatar(idx, input){
+  const file = input.files[0];
+  if(!file) return;
+  // Resize and compress
+  const reader = new FileReader();
+  reader.onload = function(e){
+    const img = new Image();
+    img.onload = function(){
+      const canvas = document.createElement('canvas');
+      const size = 128;
+      canvas.width = size; canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      // Crop to square
+      const min = Math.min(img.width, img.height);
+      const sx = (img.width - min)/2, sy = (img.height - min)/2;
+      ctx.drawImage(img, sx, sy, min, min, 0, 0, size, size);
+      config.chars[idx].avatar = canvas.toDataURL('image/jpeg', 0.7);
+      renderCharList();
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function addCharItem(){
+  const idx = config.chars.length;
+  config.chars.push({ name:'角色'+(idx+1), color:DEFAULT_COLORS[idx % DEFAULT_COLORS.length], avatar:'' });
+  renderCharList();
+  // Scroll to bottom
+  const list = document.getElementById('charList');
+  list.lastElementChild.scrollIntoView({behavior:'smooth'});
+}
+
+function removeChar(idx){
+  if(config.chars.length <= 2){ alert('至少保留2个角色'); return; }
+  config.chars.splice(idx, 1);
+  renderCharList();
+}
+
+function saveConfigAndStart(){
+  // Validate
+  config.maxCards = Math.max(1, parseInt(document.getElementById('paramMaxCards').value)||30);
+  config.touchdown = Math.max(1, parseInt(document.getElementById('paramTouchdown').value)||5);
+  // Read names from inputs
+  const nameInputs = document.querySelectorAll('.char-name-input');
+  nameInputs.forEach((inp,i) => { if(config.chars[i]) config.chars[i].name = inp.value.trim()||('角色'+(i+1)); });
+  // Check for empty names
+  config.chars = config.chars.filter(c => c.name);
+  if(config.chars.length < 2){ alert('至少需要2个角色'); return; }
+  saveConfig(config);
+  // Reset state if char count changed
+  if(!state.rounds.length || state.rounds[0].length !== config.chars.length){
+    state = defaultState(config.chars.length);
+    saveState();
+  }
+  showPage('pageRecorder');
+  buildGrid();
+  render();
+}
+
+function goToSetup(){
+  showPage('pageSetup');
+  renderSetup();
+}
+
+function showPage(id){
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  window.scrollTo(0,0);
+}
+
+// ===== RECORDER =====
+function getCurrent(){ return state.rounds[state.currentIdx]; }
+function totalCards(r){ return r.reduce((a,b)=>a+b,0); }
+function getTop(r){
+  let max=0,idx=0;
+  r.forEach((v,i)=>{ if(v>max){max=v;idx=i} });
+  return {name:config.chars[idx]?.name||'',count:max};
+}
+function getTouchdown(r){
+  const hits=[];
+  r.forEach((v,i)=>{ if(v>=config.touchdown) hits.push(config.chars[i]?.name||''); });
+  return hits;
+}
+function isBlackCar(r){ return totalCards(r)>=config.maxCards && getTouchdown(r).length===0; }
+function isFinished(r){ return totalCards(r)>=config.maxCards; }
+
+function render(){
+  const r=getCurrent(), total=totalCards(r), top=getTop(r), td=getTouchdown(r), bc=isBlackCar(r);
+  document.getElementById('roundNum').textContent=state.currentIdx+1;
+  document.getElementById('totalCards').textContent=total;
+  document.getElementById('maxCardsLabel').textContent=config.maxCards;
+  document.getElementById('topChar').textContent=top.count>0?`${top.name} ${top.count}次`:'-';
+  document.getElementById('progressBar').style.width=(total/config.maxCards*100)+'%';
+
+  const chip=document.getElementById('statusChip');
+  if(total>=config.maxCards&&td.length){chip.textContent='已结束 · 达阵: '+td.join(' ');chip.style.color='var(--success)'}
+  else if(bc){chip.textContent='已结束 · 黑车';chip.style.color='var(--danger)'}
+  else if(td.length){chip.textContent='达阵中 · '+td.join(' ')+' · 继续开';chip.style.color='var(--success)'}
+  else{chip.textContent='进行中';chip.style.color=''}
+
+  const grid=document.getElementById('charGrid');
+  config.chars.forEach((ch,i)=>{
+    if(!grid.children[i]) return;
+    const btn=grid.children[i];
+    btn.querySelector('.count').textContent=r[i];
+    btn.classList.toggle('touchdown',r[i]>=config.touchdown);
+  });
+  renderHistory();
+}
+
+function buildGrid(){
+  const grid=document.getElementById('charGrid');
+  grid.innerHTML='';
+  config.chars.forEach((ch,i)=>{
+    const btn=document.createElement('button');
+    btn.className='char-btn';
+    btn.style.background=`linear-gradient(135deg,${ch.color},${lighten(ch.color,.2)})`;
+    const avatarHtml = ch.avatar
+      ? `<img class="avatar" src="${ch.avatar}" alt="${ch.name}">`
+      : '';
+    btn.innerHTML=`${avatarHtml}<span class="name">${ch.name}</span><span class="count">0</span><span class="hint">长按-1</span>`;
+    btn.addEventListener('click',()=>addCount(i));
+    btn.addEventListener('contextmenu',e=>{e.preventDefault();subCount(i)});
+    let lt;
+    btn.addEventListener('touchstart',e=>{lt=setTimeout(()=>{e.preventDefault();subCount(i)},500)},{passive:false});
+    btn.addEventListener('touchend',()=>clearTimeout(lt));
+    btn.addEventListener('touchmove',()=>clearTimeout(lt));
+    grid.appendChild(btn);
+  });
+  // Update history header
+  const hh=document.getElementById('historyHead');
+  hh.innerHTML='<th>轮次</th>'+config.chars.map(c=>`<th>${c.name}</th>`).join('')+'<th>结果</th>';
+}
+
+function lighten(hex, amount){
+  hex=hex.replace('#','');
+  let r=parseInt(hex.substr(0,2),16),g=parseInt(hex.substr(2,2),16),b=parseInt(hex.substr(4,2),16);
+  r=Math.min(255,Math.round(r+(255-r)*amount));
+  g=Math.min(255,Math.round(g+(255-g)*amount));
+  b=Math.min(255,Math.round(b+(255-b)*amount));
+  return `rgb(${r},${g},${b})`;
+}
+
+function animBtn(i,cls){
+  const btn=document.getElementById('charGrid').children[i];
+  if(!btn)return;
+  btn.classList.remove(cls);void btn.offsetWidth;btn.classList.add(cls);
+  setTimeout(()=>btn.classList.remove(cls),300);
+}
+
+function addCount(i){
+  const r=getCurrent();
+  if(totalCards(r)>=config.maxCards) return;
+  const wasTd=r[i]>=config.touchdown;
+  r[i]++;saveState();animBtn(i,'pop');render();
+  if(!wasTd&&r[i]===config.touchdown){setTimeout(()=>showOverlay('td',getTouchdown(r)),300)}
+  if(totalCards(r)===config.maxCards&&getTouchdown(r).length===0){setTimeout(()=>showOverlay('bc'),400)}
+  if(totalCards(r)===config.maxCards&&getTouchdown(r).length>0){setTimeout(()=>showOverlay('done',getTouchdown(r)),400)}
+}
+
+function subCount(i){
+  const r=getCurrent();if(r[i]<=0)return;
+  r[i]--;saveState();animBtn(i,'shrink');render();
+}
+
+function newRound(){
+  state.rounds.push(Array(config.chars.length).fill(0));
+  state.currentIdx=state.rounds.length-1;saveState();render();
+}
+function prevRound(){if(state.currentIdx>0){state.currentIdx--;saveState();render()}}
+function nextRound(){if(state.currentIdx<state.rounds.length-1){state.currentIdx++;saveState();render()}}
+function resetCurrent(){
+  if(!confirm('确定重置第'+(state.currentIdx+1)+'轮？'))return;
+  state.rounds[state.currentIdx]=Array(config.chars.length).fill(0);saveState();render();
+}
+function confirmClearAll(){
+  if(!confirm('确定清空所有数据？不可恢复！'))return;
+  state=defaultState(config.chars.length);saveState();render();
+}
+
+function showOverlay(type,names){
+  const o=document.getElementById('overlay'),emoji=document.getElementById('overlayEmoji');
+  const title=document.getElementById('overlayTitle'),desc=document.getElementById('overlayDesc');
+  if(type==='td'){
+    emoji.textContent='\u{1F389}';title.textContent='达阵！';title.className='title td';
+    desc.textContent=(names||[]).join('、')+' 达到 '+config.touchdown+' 次！继续开完剩余卡牌';
+  }else if(type==='done'){
+    emoji.textContent='\u{1F3C6}';title.textContent='本轮结束！';title.className='title td';
+    desc.textContent='达阵角色: '+(names||[]).join('、');
+  }else{
+    emoji.textContent='\u{1F697}';title.textContent='黑车！';title.className='title bc';
+    desc.textContent=config.maxCards+'张全部开完，无角色达到'+config.touchdown+'次';
+  }
+  o.classList.add('show');
+}
+function closeOverlay(){document.getElementById('overlay').classList.remove('show')}
+
+function renderHistory(){
+  const tbody=document.getElementById('historyBody');
+  const colSpan=config.chars.length+2;
+  if(!state.rounds.some(r=>totalCards(r)>0)){
+    tbody.innerHTML=`<tr><td colspan="${colSpan}" class="empty-state">暂无记录</td></tr>`;return;
+  }
+  let html='';
+  state.rounds.forEach((r,idx)=>{
+    const total=totalCards(r);if(total===0)return;
+    const td=getTouchdown(r),bc=isBlackCar(r);
+    let result='进行中 ('+total+'/'+config.maxCards+')';let cls='';
+    if(total>=config.maxCards&&td.length){result='达阵: '+td.join(' ');cls='td-cell'}
+    else if(bc){result='黑车';cls='bc-cell'}
+    else if(td.length){result='达阵中: '+td.join(' ')+' ('+total+'/'+config.maxCards+')';cls='td-cell'}
+    html+=`<tr${idx===state.currentIdx?' style="background:rgba(255,179,71,.1)"':''}>`;
+    html+=`<td><strong>${idx+1}</strong></td>`;
+    r.forEach(v=>{html+=`<td>${v||''}</td>`});
+    html+=`<td class="${cls}">${result}</td></tr>`;
+  });
+  tbody.innerHTML=html;
+}
+
+function exportExcel(){
+  if(typeof XLSX==='undefined'){alert('Excel库加载失败，请检查网络');return}
+  const wb=XLSX.utils.book_new();
+  const names=config.chars.map(c=>c.name);
+  const hdr=['轮次',...names,'总数','达阵角色','是否黑车'];
+  const data=[hdr];
+  state.rounds.forEach((r,i)=>{
+    const total=totalCards(r);if(total===0)return;
+    const td=getTouchdown(r),bc=isBlackCar(r);
+    data.push([i+1,...r,total,td.join('/')||'-',bc?'是':(td.length?'否':'进行中')]);
+  });
+  const ws=XLSX.utils.aoa_to_sheet(data);
+  ws['!cols']=[{wch:6},...names.map(()=>({wch:8})),{wch:6},{wch:12},{wch:8}];
+  XLSX.utils.book_append_sheet(wb,ws,'开卡记录');
+  XLSX.writeFile(wb,'开卡记录.xlsx');
+}
+
+function savePageOffline(){
+  const html=document.documentElement.outerHTML;
+  const blob=new Blob(['<!DOCTYPE html>\n'+html],{type:'text/html;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='开卡记录器.html';a.click();URL.revokeObjectURL(a.href);
+}
+
+// ===== INIT =====
+// If config already saved, go straight to recorder
+if(localStorage.getItem(SK_CONFIG)){
+  showPage('pageRecorder');
+  buildGrid();render();
+} else {
+  renderSetup();
+}
+</script>
+</body>
+</html>
